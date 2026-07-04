@@ -1,0 +1,101 @@
+version: "3.8"
+
+services:
+
+  # ── Vote App (Python Flask) ──────────────────────────────
+  vote:
+    image: sharjikahamed/vote:latest
+    build: ./vote
+    ports:
+      - "5000:80"
+    networks:
+      - frontend
+    depends_on:
+      - redis
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Result App (Node.js) ─────────────────────────────────
+  result:
+    image: sharjikahamed/result:latest
+    build: ./result
+    ports:
+      - "5001:80"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ── Worker (.NET) ────────────────────────────────────────
+  worker:
+    image: sharjikahamed/worker:latest
+    build: ./worker
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - redis
+      - db
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+
+  # ── Redis (vote queue) ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    networks:
+      - frontend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  # ── PostgreSQL (result store) ────────────────────────────
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+networks:
+  frontend:
+    driver: overlay
+  backend:
+    driver: overlay
+
+volumes:
+  db-data:
+    driver: local

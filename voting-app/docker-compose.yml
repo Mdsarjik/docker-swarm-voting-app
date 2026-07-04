@@ -1,0 +1,61 @@
+version: "3.8"
+
+# Local development — no Swarm needed
+# Run: docker-compose up --build
+
+services:
+
+  vote:
+    build: ./vote
+    ports:
+      - "5000:80"
+    volumes:
+      - ./vote:/app
+    networks:
+      - frontend
+    depends_on:
+      - redis
+
+  result:
+    build: ./result
+    ports:
+      - "5001:80"
+    volumes:
+      - ./result:/app
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - db
+
+  worker:
+    build: ./worker
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - redis
+      - db
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - frontend
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+networks:
+  frontend:
+  backend:
+
+volumes:
+  db-data:
